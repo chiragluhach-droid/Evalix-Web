@@ -1,0 +1,853 @@
+import React, { useState } from 'react';
+import { Player } from '@lottiefiles/react-lottie-player';
+import API_BASE_URL from './apiConfig.js';
+import onlineTestAnimation from './assets/OnlineTest.json';
+
+// ========== STYLES ==========
+const landingStyles = `
+  :root {
+    --primary: #4f46e5;
+    --primary-light: #e0e7ff;
+    --primary-hover: #4338ca;
+    --bg-main: #ffffff;
+    --bg-secondary: #f8fafc;
+    --text-dark: #0f172a;
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
+    --input-bg: #f8fafc;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  .landing-wrapper {
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg-main);
+    color: var(--text-dark);
+    overflow-x: hidden;
+  }
+
+  /* --- TOP NAVBAR --- */
+  .navbar {
+    width: 100%;
+    padding: 14px 6.5%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1000;
+    background: var(--bg-main);
+    border-bottom: 0.5px solid var(--primary);
+    border-bottom-left-radius: 80px;
+    border-bottom-right-radius: 80px;
+    border-top-left-radius: 60px;
+    border-top-right-radius: 60px;
+    box-shadow: 0 25px 50px -12px rgba(78, 70, 229, 0.28);
+  }
+
+  .nav-logo {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-logo::before {
+    content: '';
+    display: block;
+    width: 24px;
+    height: 24px;
+    background: var(--primary);
+    border-radius: 6px;
+    border-top-right-radius: 2px;
+    border-bottom-left-radius: 2px;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 24px;
+  }
+
+  .nav-links a {
+    text-decoration: none;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 15px;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover {
+    color: var(--primary);
+  }
+
+  /* --- HERO SECTION --- */
+  .hero-section {
+    position: relative;
+    width: 100%;
+    background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
+    padding: 40px 5% 10px 5%; /* Extra bottom padding for the wave */
+    display: flex;
+    justify-content: center;
+  }
+
+  .hero-container {
+    max-width: 1250px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 60px;
+    z-index: 2;
+  }
+
+  /* Left Side: Hero Text & Lottie */
+  .hero-text-side {
+    flex: 1.1;
+  }
+
+  .hero-badge {
+    display: inline-block;
+    padding: 7px 11px;
+    background: white;
+    color: var(--primary);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 63px;
+    margin-bottom: 8px;
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.1);
+    margin-left: -4.3px;
+  }
+
+  .hero-title {
+    font-size: 40px;
+    font-weight: 720;
+    line-height: 1.1;
+    letter-spacing: -1.5px;
+    color: var(--text-dark);
+    margin-bottom: 15px;
+    margin-left: -3px;
+  }
+
+  .hero-subtitle {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 8px;
+    max-width: 520px;
+  }
+
+ .hero-animation {
+    max-width: 400px;
+    margin-left: 63px; /* Offset lottie padding slightly */
+    transform: scale(1.082); 
+    transform-origin: left; 
+    position: relative; 
+    z-index: 10; 
+  }
+
+  /* Right Side: Floating Auth Card */
+  .hero-auth-card {
+    flex: 0.9;
+    background: white;
+    border-radius: 27px;
+    padding: 26px;
+    padding-bottom: 2px; /* Default small padding for Login */
+    box-shadow: 0 25px 50px -12px rgba(78, 70, 229, 0.13);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    width: 100%;
+    max-width: 450px;
+    margin-top: 43px;
+    transition: padding-bottom 0.3s ease; /* Smooth transition */
+  }
+
+  /* Padding for the educator signup state */
+  .hero-auth-card.signup-state {
+    padding-bottom: 20px;
+  }
+
+  /* Larger padding for the student state */
+  .hero-auth-card.student-state {
+    padding-bottom: 26px;
+  }
+
+  /* SVG Wave Divider */
+  .wave-divider {
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    overflow: hidden;
+    line-height: 0;
+    z-index: 1;
+  }
+
+  .wave-divider svg {
+    position: relative;
+    display: block;
+    width: calc(100% + 1.3px);
+    height: 97px;
+  }
+
+  .wave-divider .shape-fill {
+    fill: var(--bg-main);
+  }
+
+  /* --- AUTH FORM STYLES (Inside Card) --- */
+  .auth-form-content h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .auth-form-content > p {
+    color: var(--text-muted);
+    font-size: 15px;
+    margin-bottom: 32px;
+    line-height: 1.5;
+  }
+
+  .auth-role-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    background: var(--bg-secondary);
+    padding: 6px;
+    border-radius: 12px;
+  }
+
+  .auth-role-tabs button {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .auth-form-group { margin-bottom: 20px; }
+  .auth-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-dark);
+  }
+
+  .auth-form-group input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 15px;
+    transition: all 0.2s ease;
+    background: var(--input-bg);
+    color: var(--text-dark);
+  }
+  
+  .auth-form-group input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+  }
+
+  .auth-submit-button {
+    width: 100%;
+    padding: 14px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 8px;
+  }
+
+  .auth-submit-button:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(79, 70, 229, 0.2);
+  }
+
+  .auth-error-message {
+    color: #b91c1c;
+    background: #fef2f2;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    border-left: 4px solid #ef4444;
+  }
+
+  .auth-toggle {
+    text-align: center;
+    margin-top: 24px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  
+  .auth-toggle-link {
+    background: none;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    margin-left: 4px;
+  }
+  .auth-toggle-link:hover { text-decoration: underline; }
+
+  /* --- LEARN MORE INDICATOR --- */
+  .hero-learn-more {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-decoration: none;
+    color: var(--primary);
+    font-weight: 600;
+    font-size: 14px;
+    opacity: 0.8;
+    transition: opacity 0.35s ease;
+    animation: bounce 2s infinite;
+  }
+
+  .hero-learn-more:hover {
+    opacity: 1;
+    color: var(--primary-hover);
+  }
+
+  .hero-learn-more svg {
+    width: 24px;
+    height: 24px;
+    margin-top: 4px;
+  }
+
+  @keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0) translateX(-50%);
+    }
+    40% {
+      transform: translateY(-10px) translateX(-50%);
+    }
+    60% {
+      transform: translateY(-5px) translateX(-50%);
+    }
+  }
+
+  /* --- CONTENT SECTIONS --- */
+  .info-section {
+    padding: 100px 5%;
+    max-width: 1290px;
+    margin: 0 auto;
+    text-align: center;
+    margin-top: -105px;
+  }
+
+  .section-title {
+    font-size: 34px;
+    font-weight: 650;
+    margin-bottom: 6px;
+    letter-spacing: -1px;
+  }
+  
+  .section-subtitle {
+    color: var(--text-muted);
+    font-size: 18px;
+    max-width: 600px;
+    margin: 0 auto 60px auto;
+    line-height: 1.6;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+  }
+
+  .feature-card {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 32px;
+    text-align: left;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--primary);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.04);
+  }
+
+  .feature-card:hover::before {
+    opacity: 1;
+  }
+
+  .feature-card img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-bottom: 24px;
+  }
+
+  .feature-card h3 {
+    font-size: 22px;
+    margin-bottom: 12px;
+    color: var(--text-dark);
+  }
+
+  .feature-card p {
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  /* --- SPLIT SHOWCASE SECTION --- */
+  .showcase-wrapper {
+    background: var(--bg-secondary);
+    padding: 100px 5%;
+  }
+
+  .showcase-split {
+    display: flex;
+    align-items: center;
+    gap: 80px;
+    max-width: 1200px;
+    margin: 0 auto 100px auto;
+  }
+
+  .showcase-split:last-child {
+    margin-bottom: 0;
+  }
+
+  .showcase-split.reverse { flex-direction: row-reverse; }
+
+  .showcase-text { flex: 1; }
+  
+  .showcase-text h2 {
+    font-size: 36px;
+    font-weight: 800;
+    margin-bottom: 20px;
+    letter-spacing: -1px;
+    color: var(--text-dark);
+  }
+  
+  .showcase-text p {
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+
+  .showcase-image {
+    flex: 1;
+  }
+  
+  .showcase-image img {
+    width: 100%;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--border-color);
+  }
+
+  /* --- FOOTER --- */
+  .site-footer {
+    background: white;
+    padding: 40px 5%;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  @media (max-width: 900px) {
+    .hero-container { flex-direction: column; text-align: center; gap: 40px; }
+    .hero-title { font-size: 38px; }
+    .hero-subtitle { margin: 0 auto 30px auto; }
+    .hero-animation { margin: 0 auto; display: none; }
+    .hero-auth-card { padding: 30px 20px; }
+    
+    .nav-links { display: none; }
+    
+    .showcase-split, .showcase-split.reverse { flex-direction: column; gap: 40px; text-align: center; }
+  }
+`;
+// ========== END OF STYLES ==========
+
+function AuthScreen({ onAuthSuccess }) {
+  const [isSignup, setIsSignup] = useState(false);
+  const [isStudent, setIsStudent] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [examCode, setExamCode] = useState('');
+  const [studentDetails, setStudentDetails] = useState({ name: '', email: '' });
+  const [studentMode, setStudentMode] = useState('code-entry'); 
+  const [fetchedExam, setFetchedExam] = useState(null);
+  const [existingAttempt, setExistingAttempt] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setError('');
+  };
+
+  const handleStudentDetailsChange = (e) => {
+    const { name, value } = e.target;
+    setStudentDetails(prev => ({ ...prev, [name]: value }));
+    setError('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      if (isStudent) {
+        if (studentMode === 'code-entry') {
+          if (!examCode.trim()) { setError('Please enter an exam code'); setLoading(false); return; }
+          const response = await fetch(`${API_BASE_URL}/api/exams/code/${examCode.toUpperCase()}`, { method: 'GET' });
+          const data = await response.json();
+          if (!response.ok) { setError(data.error || 'Exam code not found'); setLoading(false); return; }
+          setFetchedExam(data.exam);
+          setStudentMode('details-form');
+        } else if (studentMode === 'details-form') {
+          if (!studentDetails.name.trim() || !studentDetails.email.trim()) { setError('Please fill in all fields'); setLoading(false); return; }
+          const deviceInfo = {
+            userAgent: navigator.userAgent,
+            screen: `${window.screen.width}x${window.screen.height}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            platform: navigator.platform
+          };
+          const joinResponse = await fetch(`${API_BASE_URL}/api/exams/join-exam`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ examCode: examCode.toUpperCase(), studentEmail: studentDetails.email, studentName: studentDetails.name, deviceInfo })
+          });
+          const joinData = await joinResponse.json();
+          if (!joinResponse.ok) { setError(joinData.error || 'Failed to join exam'); setLoading(false); return; }
+          if (joinData.resume) {
+            setExistingAttempt(joinData.attempt);
+            setStudentMode('resume-modal');
+          } else {
+            onAuthSuccess({ id: 'student', name: studentDetails.name, email: studentDetails.email, isStudent: true, exam: fetchedExam, studentName: studentDetails.name, studentEmail: studentDetails.email, isResuming: false, existingAttempt: joinData.attempt });
+          }
+        }
+      } else {
+        const endpoint = isSignup ? '/api/auth/signup' : '/api/auth/login';
+        const payload = isSignup ? formData : { email: formData.email, password: formData.password };
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) { setError(data.error || 'Authentication failed. Please check your credentials.'); setLoading(false); return; }
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        onAuthSuccess(data.user);
+      }
+    } catch (err) {
+      setError('Network error. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackFromDetails = () => {
+    setStudentMode('code-entry');
+    setStudentDetails({ name: '', email: '' });
+    setFetchedExam(null);
+  };
+
+  const handleResumeModal = async (isResuming) => {
+    onAuthSuccess({ id: 'student', name: studentDetails.name, email: studentDetails.email, isStudent: true, exam: fetchedExam, studentName: studentDetails.name, studentEmail: studentDetails.email, isResuming: true, existingAttempt: existingAttempt });
+  };
+
+  return (
+    <React.Fragment>
+      <style>{landingStyles}</style>
+      <div className="landing-wrapper">
+        
+        {/* Navigation Bar */}
+        <nav className="navbar">
+          <div className="nav-logo">Evalix</div>
+          <div className="nav-links">
+            <a href="#features">Features</a>
+            <a href="#dashboard">Dashboard</a>
+            <a href="#students">For Students</a>
+          </div>
+        </nav>
+
+        {/* HERO SECTION */}
+        <section className="hero-section">
+          <div className="hero-container">
+            
+            {/* Hero Text Context */}
+            <div className="hero-text-side">
+              <span className="hero-badge">Next-Gen Assessment Platform</span>
+              <h1 className="hero-title">Secure Exams, Seamlessly Delivered.</h1>
+              <p className="hero-subtitle">
+                Evalix provides a locked-down, robust environment for academic testing. Stop cheating before it happens while generating deep analytics on student performance.
+              </p>
+              <div className="hero-animation">
+                <Player autoplay loop src={onlineTestAnimation} style={{ width: '100%' }} />
+              </div>
+            </div>
+
+            {/* Elevated Auth Card with dynamic class logic covering all three states */}
+            <div className={`hero-auth-card ${isStudent ? 'student-state' : (isSignup ? 'signup-state' : '')}`}>
+              <div className="auth-form-content">
+                <h1>{isStudent ? 'Join an Exam' : (isSignup ? 'Create account' : 'Welcome to Evalix')}</h1>
+                <p>
+                  {isStudent
+                    ? (studentMode === 'code-entry' ? 'Enter the unique 6-digit code provided by your instructor.' : 'Verify your details to begin the assessment.')
+                    : (isSignup
+                      ? 'Register your institution to start creating secure assessments.'
+                      : 'Log in to manage your exams and analyze results.')}
+                </p>
+
+                {/* Role Tabs */}
+                <div className="auth-role-tabs">
+                  <button
+                    type="button"
+                    onClick={() => { setIsStudent(false); setError(''); setStudentMode('code-entry'); }}
+                    style={{
+                      background: !isStudent ? 'white' : 'transparent',
+                      color: !isStudent ? 'var(--primary)' : 'var(--text-muted)',
+                      boxShadow: !isStudent ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
+                    }}
+                  >
+                    👨‍🏫 Educator
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsStudent(true); setError(''); setStudentMode('code-entry'); }}
+                    style={{
+                      background: isStudent ? 'white' : 'transparent',
+                      color: isStudent ? 'var(--primary)' : 'var(--text-muted)',
+                      boxShadow: isStudent ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
+                    }}
+                  >
+                    👨‍🎓 Student
+                  </button>
+                </div>
+
+                {/* Form Logic */}
+                <form onSubmit={handleSubmit}>
+                  {isStudent ? (
+                    studentMode === 'code-entry' ? (
+                      <div className="auth-form-group">
+                        <label>Exam Code</label>
+                        <input type="text" value={examCode} onChange={(e) => setExamCode(e.target.value.toUpperCase())} placeholder="e.g., ABC123" required maxLength="6" style={{ fontSize: '24px', letterSpacing: '4px', fontWeight: '600', textAlign: 'center' }} />
+                      </div>
+                    ) : studentMode === 'details-form' ? (
+                      <>
+                        <div className="auth-form-group">
+                          <label>Full Name</label>
+                          <input type="text" name="name" value={studentDetails.name} onChange={handleStudentDetailsChange} placeholder="e.g. John Doe" required />
+                        </div>
+                        <div className="auth-form-group">
+                          <label>Email Address</label>
+                          <input type="email" name="email" value={studentDetails.email} onChange={handleStudentDetailsChange} placeholder="student@university.edu" required />
+                        </div>
+                      </>
+                    ) : studentMode === 'resume-modal' ? (
+                      <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                        <div style={{ background: '#e0e7ff', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
+                          <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>👋</span>
+                          <h3 style={{ color: 'var(--text-dark)', marginBottom: '8px' }}>Welcome back, {studentDetails.name}!</h3>
+                          <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.5' }}>
+                            We found an incomplete attempt for this exam. You have <strong>{Math.floor((existingAttempt?.remainingTime || 0) / 60)} minutes</strong> remaining.
+                          </p>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => handleResumeModal(true)}
+                          className="auth-submit-button"
+                          style={{ marginBottom: '12px' }}
+                        >
+                          Resume Exam
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={handleBackFromDetails}
+                          style={{ width: '100%', padding: '14px', background: 'transparent', color: 'var(--danger)', border: '1px solid currentColor', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : null
+                  ) : (
+                    <>
+                      {isSignup && (
+                        <div className="auth-form-group">
+                          <label>Full Name</label>
+                          <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="e.g. Dr. Jane Smith" required />
+                        </div>
+                      )}
+                      <div className="auth-form-group">
+                        <label>Institutional Email</label>
+                        <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="teacher@school.edu" required />
+                      </div>
+                      <div className="auth-form-group">
+                        <label>Password</label>
+                        <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="••••••••" required />
+                      </div>
+                    </>
+                  )}
+
+                  {error && <div className="auth-error-message">{error}</div>}
+
+                  {studentMode !== 'resume-modal' && (
+                    <button type="submit" disabled={loading} className="auth-submit-button">
+                      {loading ? 'Please wait...' : (isStudent ? (studentMode === 'code-entry' ? 'Verify Code' : 'Start Exam') : (isSignup ? 'Create Account' : 'Secure Login'))}
+                    </button>
+                  )}
+
+                  {isStudent && studentMode === 'details-form' && (
+                    <button type="button" onClick={handleBackFromDetails} disabled={loading} style={{ width: '100%', padding: '14px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', marginTop: '12px' }}>
+                      Back
+                    </button>
+                  )}
+                </form>
+
+                {!isStudent && (
+                  <p className="auth-toggle">
+                    {isSignup ? 'Already registered?' : "First time here?"}
+                    <button className="auth-toggle-link" onClick={() => { setIsSignup(!isSignup); setFormData({ name: '', email: '', password: '' }); setError(''); }}>
+                      {isSignup ? 'Log in here' : 'Create account'}
+                    </button>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* SVG Wave Divider */}
+          <div className="wave-divider">
+            <svg data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none">
+              <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V120H0V95.8C50.36,110.15,108.64,115.1,168,111.45,219.85,108.28,271.74,83.9,321.39,56.44Z" className="shape-fill"></path>
+            </svg>
+          </div>
+
+          {/* Interactive Learn More Button */}
+          <a href="#features" className="hero-learn-more">
+            Learn More
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </a>
+
+        </section>
+
+        {/* FEATURES SECTION */}
+        <section id="features" className="info-section">
+          <h2 className="section-title">The Standard in Academic Integrity</h2>
+          <p className="section-subtitle">
+            Evalix provides institutions with the tools they need to conduct fair, secure, and easily manageable online assessments without the technical headache.
+          </p>
+
+          <div className="features-grid">
+            <div className="feature-card">
+              <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=600" alt="Student focusing" />
+              <h3>Strict Anti-Cheat Engine</h3>
+              <p>Advanced browser locking, tab monitoring, and focus tracking ensures that the student taking the exam remains entirely focused on the assessment.</p>
+            </div>
+            
+            <div className="feature-card">
+              <img src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&q=80&w=600" alt="Teacher planning" />
+              <h3>Rapid Test Generation</h3>
+              <p>Teachers can create comprehensive exams in minutes. Import questions, set time limits, randomize orders, and generate unique access codes seamlessly.</p>
+            </div>
+
+            <div className="feature-card">
+              <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=600" alt="Data Analytics" />
+              <h3>In-Depth Analytics</h3>
+              <p>Go beyond simple grading. Track class performance metrics, identify frequently missed questions, and analyze individual student attempts post-exam.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* SHOWCASE WRAPPER */}
+        <div className="showcase-wrapper">
+          {/* SHOWCASE SECTION 1 */}
+          <section id="dashboard" className="showcase-split">
+            <div className="showcase-text">
+              <h2>Empowering Educators with Actionable Data</h2>
+              <p>
+                The Evalix Teacher Dashboard doesn't just collect answers; it provides insights. Watch real-time exam progress, identify cheating flags immediately, and export detailed CSV reports for your gradebook.
+              </p>
+              <p>
+                Review timestamps, analyze the difficulty of your questions based on student success rates, and adjust your curriculum based on real testing data.
+              </p>
+            </div>
+            <div className="showcase-image">
+              <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=800" alt="Teacher Dashboard Analytics" />
+            </div>
+          </section>
+
+          {/* SHOWCASE SECTION 2 */}
+          <section id="students" className="showcase-split reverse">
+            <div className="showcase-text">
+              <h2>A Frictionless Student Experience</h2>
+              <p>
+                Students don't need complex accounts or passwords to take a test. They simply enter the unique 6-digit exam code provided by their instructor, fill in their basic credentials, and begin immediately.
+              </p>
+              <p>
+                Built-in network fault tolerance ensures that if a student drops connection mid-test, they can safely resume right where they left off without losing their progress.
+              </p>
+            </div>
+            <div className="showcase-image">
+              <img src="https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&q=80&w=800" alt="Student taking exam" />
+            </div>
+          </section>
+        </div>
+
+        {/* FOOTER */}
+        <footer className="site-footer">
+          <p>© {new Date().getFullYear()} Evalix. Built for modern academic integrity.</p>
+        </footer>
+
+      </div>
+    </React.Fragment>
+  );
+}
+
+export default AuthScreen;
