@@ -1,739 +1,819 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from 'react';
+import { api } from './api.js';
 import { useToast } from './ToastContext.js';
-import API_BASE_URL from './apiConfig.js';
+import { Toggle, Modal, Loading } from './components.js';
+import QuestionEditor from './QuestionEditor.js';
 
-// ========== PREMIUM STYLES ==========
-const createExamStyles = `
-  :root {
-    --primary: #4f46e5;
-    --primary-hover: #4338ca;
-    --primary-light: #e0e7ff;
-    --success: #10b981;
-    --success-light: #d1fae5;
-    --bg-main: #f8fafc;
-    --bg-surface: #ffffff;
-    --text-dark: #0f172a;
-    --text-muted: #64748b;
-    --border-color: #e2e8f0;
-    --danger: #ef4444;
-    --danger-light: #fee2e2;
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
-    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes modalEnter {
-    from { opacity: 0; transform: scale(0.95) translateY(10px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-  }
-
-  .create-page {
-    min-height: 100vh;
-    background: var(--bg-main);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    padding-bottom: 80px;
-    color: var(--text-dark);
-  }
-
-  /* Glassmorphism Top Action Bar */
-  .action-bar {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(226, 232, 240, 0.8);
-    padding: 0 40px;
-    height: 72px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-
-  .bar-left { display: flex; align-items: center; gap: 20px; }
-
-  .back-btn {
-    display: flex; align-items: center; gap: 8px;
-    background: none; border: none;
-    color: var(--text-muted); font-size: 14px; font-weight: 600;
-    cursor: pointer; transition: var(--transition);
-    padding: 8px 12px; border-radius: var(--radius-sm);
-    margin-left: -12px;
-  }
-
-  .back-btn:hover { background: var(--bg-main); color: var(--text-dark); }
-
-  .page-title {
-    font-size: 18px; font-weight: 700; color: var(--text-dark);
-    padding-left: 20px; border-left: 2px solid var(--border-color);
-    letter-spacing: -0.01em;
-  }
-
-  .bar-right { display: flex; gap: 12px; align-items: center; }
-
-  .save-status {
-    font-size: 13px; font-weight: 500; color: var(--success);
-    margin-right: 8px; display: flex; align-items: center; gap: 6px;
-  }
-
-  /* Button Overhauls */
-  button { font-family: inherit; }
-  
-  .btn-secondary, .btn-primary, .modal-cancel, .btn-danger {
-    padding: 10px 18px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600;
-    cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; gap: 8px;
-  }
-
-  .btn-secondary, .modal-cancel {
-    background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-dark);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .btn-secondary:hover, .modal-cancel:hover { background: var(--bg-main); border-color: #cbd5e1; }
-
-  .btn-primary {
-    background: var(--primary); border: 1px solid var(--primary); color: white;
-    box-shadow: 0 2px 10px rgba(79, 70, 229, 0.2);
-  }
-
-  .btn-primary:hover { background: var(--primary-hover); box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3); transform: translateY(-1px); }
-  .btn-primary:active { transform: translateY(0); }
-  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
-
-  .btn-danger { background: white; border: 1px solid var(--danger-light); color: var(--danger); }
-  .btn-danger:hover { background: var(--danger-light); }
-
-  /* Main Form Area */
-  .form-container {
-    max-width: 840px; margin: 40px auto; padding: 0 20px;
-    display: flex; flex-direction: column; gap: 32px;
-    animation: fadeIn 0.5s ease-out forwards;
-  }
-
-  .config-card {
-    background: var(--bg-surface); border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg); padding: 40px; box-shadow: var(--shadow-md);
-  }
-
-  .card-header { margin-bottom: 32px; }
-  .card-header h2 { font-size: 20px; color: var(--text-dark); font-weight: 700; margin-bottom: 6px; letter-spacing: -0.01em; }
-  .card-header p { font-size: 15px; color: var(--text-muted); line-height: 1.5; }
-
-  /* Premium Form Inputs */
-  .form-group { margin-bottom: 24px; }
-  .form-row { display: flex; gap: 24px; }
-  .form-row .form-group { flex: 1; }
-
-  label { display: block; font-size: 14px; font-weight: 600; color: var(--text-dark); margin-bottom: 8px; }
-
-  input[type="text"], input[type="number"], textarea, select {
-    width: 100%; padding: 12px 16px; border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm); font-size: 15px; font-family: inherit;
-    transition: var(--transition); background: var(--bg-main); color: var(--text-dark);
-  }
-
-  textarea { resize: vertical; min-height: 120px; line-height: 1.5; }
-
-  input:hover, textarea:hover, select:hover { border-color: #cbd5e1; }
-  input:focus, textarea:focus, select:focus {
-    outline: none; border-color: var(--primary); background: var(--bg-surface);
-    box-shadow: 0 0 0 4px var(--primary-light);
-  }
-
-  /* Refined iOS Style Toggle Switches */
-  .setting-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 20px 0; border-bottom: 1px solid var(--border-color);
-  }
-  .setting-row:first-of-type { border-top: 1px solid var(--border-color); padding-top: 24px; }
-  .setting-row:last-child { border-bottom: none; padding-bottom: 0; }
-
-  .setting-info { display: flex; align-items: flex-start; gap: 16px; max-width: 80%; }
-  .setting-icon { 
-    margin-top: 2px; color: var(--primary); background: var(--primary-light); 
-    padding: 8px; border-radius: 8px; display: flex; 
-  }
-  .setting-text h4 { font-size: 15px; font-weight: 600; color: var(--text-dark); margin-bottom: 4px; }
-  .setting-text p { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
-
-  .switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; }
-  .switch input { opacity: 0; width: 0; height: 0; }
-  .slider {
-    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-    background-color: #cbd5e1; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 26px;
-  }
-  .slider:before {
-    position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px;
-    background-color: white; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  }
-  input:checked + .slider { background-color: var(--success); }
-  input:checked + .slider:before { transform: translateX(22px); }
-
-  /* Enhanced Questions List */
-  .questions-list { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
-
-  .question-item {
-    background: var(--bg-surface); border: 1px solid var(--border-color);
-    padding: 24px; border-radius: var(--radius-md); box-shadow: var(--shadow-sm);
-    position: relative; overflow: hidden; transition: var(--transition);
-  }
-  .question-item:hover { border-color: #cbd5e1; box-shadow: var(--shadow-md); }
-  .question-item::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--primary);
-  }
-
-  .question-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; gap: 16px; }
-  .question-item h4 { color: var(--text-dark); font-size: 16px; line-height: 1.4; font-weight: 600; }
-  
-  .badges { display: flex; gap: 8px; margin-bottom: 16px; }
-  .badge {
-    padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
-  }
-  .badge.type { background: var(--bg-main); color: var(--text-muted); border: 1px solid var(--border-color); }
-  .badge.points { background: var(--primary-light); color: var(--primary); }
-
-  .question-actions { display: flex; gap: 8px; }
-  .btn-icon {
-    padding: 8px; border-radius: var(--radius-sm); border: none; cursor: pointer;
-    transition: var(--transition); display: flex; align-items: center; justify-content: center;
-  }
-  .btn-icon.edit { background: var(--bg-main); color: var(--text-dark); border: 1px solid var(--border-color); }
-  .btn-icon.edit:hover { background: var(--border-color); }
-  .btn-icon.delete { background: white; color: var(--danger); border: 1px solid var(--danger-light); }
-  .btn-icon.delete:hover { background: var(--danger-light); }
-
-  .questions-empty {
-    text-align: center; padding: 60px 20px; background: var(--bg-main);
-    border: 2px dashed #cbd5e1; border-radius: var(--radius-md);
-  }
-  .empty-icon { color: #94a3b8; margin-bottom: 16px; }
-  .questions-empty h3 { font-size: 18px; color: var(--text-dark); margin-bottom: 8px; }
-  .questions-empty p { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; }
-
-  /* Smooth Modal */
-  .modal-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center; z-index: 50;
-    padding: 20px;
-  }
-
-  .modal-content {
-    background: var(--bg-surface); border-radius: var(--radius-lg); padding: 40px;
-    width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto;
-    box-shadow: var(--shadow-lg); animation: modalEnter 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-  }
-
-  .modal-header { margin-bottom: 32px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
-  .modal-header h3 { font-size: 20px; color: var(--text-dark); font-weight: 700; }
-
-  .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-color); }
-
-  .option-input { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
-  .option-input input[type="text"] { flex: 1; }
-  .radio-wrap {
-    display: flex; align-items: center; gap: 8px; background: var(--bg-main); 
-    padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); cursor: pointer;
-  }
-  .radio-wrap:hover { background: var(--primary-light); border-color: var(--primary); }
-  .radio-wrap input[type="radio"] { cursor: pointer; width: 16px; height: 16px; accent-color: var(--primary); }
-  .radio-wrap span { font-size: 13px; font-weight: 500; color: var(--text-dark); }
-
-  @media (max-width: 768px) {
-    .form-row { flex-direction: column; gap: 0; }
-    .action-bar { padding: 0 20px; }
-    .page-title { display: none; }
-    .config-card { padding: 24px; }
-    .setting-info { max-width: 70%; }
-  }
-`;
-
-export const parseBulkQuestions = (rawText) => {
-  const blocks = rawText.split(/\n\s*\n/).filter(b => b.trim());
-  const parsed = [];
-  let skippedCount = 0;
-
-  const normalizeAnswer = (ans) => {
-    const clean = ans.toLowerCase().trim().replace(/[.)]/g, "");
-    if (clean === 'a' || clean === '1') return 0;
-    if (clean === 'b' || clean === '2') return 1;
-    if (clean === 'c' || clean === '3') return 2;
-    if (clean === 'd' || clean === '4') return 3;
-    return -1;
+function blankExam() {
+  return {
+    title: '', description: '', template: 'custom', duration: 60, passingScore: 50, gracePeriod: 0,
+    scheduledStart: '', scheduledEnd: '', password: '', usePassword: false,
+    navigation: { mode: 'free', allowBacktrack: true, allowMarkForReview: true },
+    negativeMarking: { enabled: false, value: 0.25 },
+    security: { fullscreenRequired: false, tabSwitchLogging: false, maxTabSwitches: 3, autoSubmitOnTabLimit: false, copyPasteBlocked: false, rightClickBlocked: false, autoSaveInterval: 30, concurrentLoginDetection: false },
+    shuffleQuestions: false, shuffleOptions: false,
+    sections: [{ id: 's' + Date.now(), name: 'Section 1', description: '', timeLimit: null, shuffleQuestions: false, shuffleOptions: false, questions: [] }],
+    assignedStudents: [], assignedAll: false,
+    securityMode: 'standard'
   };
+}
 
-  blocks.forEach(block => {
-    const lines = block.split('\n').map(l => l.trim()).filter(l => l);
-    if (lines.length < 3) {
-      skippedCount++;
-      return;
-    }
-
-    const answerRegex = /^(?:answer|ans|correct answer)\s*:\s*([A-D1-4])/i;
-    let answerLineIdx = -1;
-    let correctIndex = -1;
-
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const match = lines[i].match(answerRegex);
-      if (match) {
-        answerLineIdx = i;
-        correctIndex = normalizeAnswer(match[1]);
-        break;
-      }
-    }
-
-    if (answerLineIdx === -1 || correctIndex === -1) {
-      skippedCount++;
-      return;
-    }
-
-    const questionText = lines[0].replace(/^\d+[\.\)]\s*/, '').trim();
-    const options = [];
-
-    for (let i = 1; i < answerLineIdx; i++) {
-       const optText = lines[i].replace(/^[A-Da-d1-4][.)]\s*/, '').trim();
-       if (optText) options.push(optText);
-    }
-
-    if (options.length >= 2 && correctIndex >= 0 && correctIndex < options.length) {
-      parsed.push({
-        type: "multiple-choice",
-        text: questionText,
-        options: options,
-        correctOption: correctIndex,
-        points: 1
-      });
-    } else {
-      skippedCount++;
-    }
-  });
-
-  return { parsed, skippedCount };
-};
-
-function CreateExamScreen({ examId, initialExam, onBack }) {
+export default function CreateExamScreen({ examId, user, onBack }) {
   const { showToast } = useToast();
-  const [examData, setExamData] = useState({
-    title: initialExam?.title || '',
-    description: initialExam?.description || '',
-    duration: initialExam?.duration || 60,
-    passingScore: initialExam?.passingScore || 50,
-  });
+  const [exam, setExam] = useState(examId ? null : blankExam());
+  const [templates, setTemplates] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [editingQ, setEditingQ] = useState(null); // { sectionIdx, question }
+  const [showAssign, setShowAssign] = useState(false);
+  const [importFromBank, setImportFromBank] = useState(null); // { sectionIdx }
+  const [importFromCSV, setImportFromCSV] = useState(null); // { sectionIdx }
 
-  const [questions, setQuestions] = useState(initialExam?.questions || []);
-  const [showQuestionModal, setShowQuestionModal] = useState(false);
-  const [editingQuestion, setEditingQuestion] = useState(null);
-
-  const [showPasteModal, setShowPasteModal] = useState(false);
-  const [pasteText, setPasteText] = useState("");
-  const [parsedPreview, setParsedPreview] = useState([]);
-  const [skippedCount, setSkippedCount] = useState(0);
-
-  const [questionForm, setQuestionForm] = useState({
-    type: 'multiple-choice',
-    text: '',
-    options: ['', '', '', ''],
-    correctOption: 0,
-    points: 1
-  });
-
-  const [security, setSecurity] = useState(initialExam?.security || {
-    fullscreen: true,
-    tabTracking: true,
-    copyPaste: true,
-    webcam: false,
-  });
-
-  const [saveStatus, setSaveStatus] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setExamData(prev => ({ ...prev, [name]: value }));
+  const importQuestions = (sectionIdx, newQuestions) => {
+    setExam(prev => ({
+      ...prev,
+      sections: prev.sections.map((s, i) => {
+        if (i !== sectionIdx) return s;
+        const mapped = newQuestions.map(q => ({
+          ...q,
+          id: 'q' + Date.now() + Math.random().toString(36).slice(2, 6)
+        }));
+        return { ...s, questions: [...s.questions, ...mapped] };
+      })
+    }));
   };
 
-  const toggleSecurity = (key) => setSecurity(prev => ({ ...prev, [key]: !prev[key] }));
-  const handleQuestionFormChange = (e) => {
-    const { name, value } = e.target;
-    setQuestionForm(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleOptionChange = (index, value) => {
-    const newOptions = [...questionForm.options];
-    newOptions[index] = value;
-    setQuestionForm(prev => ({ ...prev, options: newOptions }));
-  };
-
-  const addOptionField = () => setQuestionForm(prev => ({ ...prev, options: [...prev.options, ''] }));
-  const removeOptionField = (index) => setQuestionForm(prev => ({ ...prev, options: prev.options.filter((_, i) => i !== index) }));
-
-  const openAddQuestion = () => {
-    setQuestionForm({ type: 'multiple-choice', text: '', options: ['', '', '', ''], correctOption: 0, points: 1 });
-    setEditingQuestion(null);
-    setShowQuestionModal(true);
-  };
-
-  const openEditQuestion = (index) => {
-    setQuestionForm(questions[index]);
-    setEditingQuestion(index);
-    setShowQuestionModal(true);
-  };
-
-  const saveQuestion = () => {
-    if (!questionForm.text) return showToast('Question text is required', 'error');
-    if (questionForm.type === 'multiple-choice') {
-      const filledOptions = questionForm.options.filter(opt => opt.trim());
-      if (filledOptions.length < 2) return showToast('At least 2 options are required', 'error');
+  useEffect(() => {
+    api('/api/exams/templates').then(d => setTemplates(d.templates)).catch(() => {});
+    if (examId) {
+      api(`/api/exams/${examId}`).then(d => {
+        const e = d.exam;
+        setExam({
+          ...blankExam(), ...e,
+          usePassword: e.hasPassword,
+          password: '',
+          scheduledStart: e.scheduledStart ? e.scheduledStart.slice(0, 16) : '',
+          scheduledEnd: e.scheduledEnd ? e.scheduledEnd.slice(0, 16) : '',
+          sections: e.sections?.length ? e.sections : blankExam().sections
+        });
+      }).catch(() => { showToast('Failed to load exam', 'error'); onBack(); });
     }
-    if (editingQuestion !== null) {
-      const newQuestions = [...questions];
-      newQuestions[editingQuestion] = questionForm;
-      setQuestions(newQuestions);
-    } else {
-      setQuestions(prev => [...prev, questionForm]);
-    }
-    setShowQuestionModal(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examId]);
+
+  const set = (patch) => setExam(prev => ({ ...prev, ...patch }));
+  const setNav = (patch) => setExam(prev => ({ ...prev, navigation: { ...prev.navigation, ...patch } }));
+  const setSec = (patch) => setExam(prev => ({ ...prev, security: { ...prev.security, ...patch } }));
+  const setNeg = (patch) => setExam(prev => ({ ...prev, negativeMarking: { ...prev.negativeMarking, ...patch } }));
+
+  const applyTemplate = (key) => {
+    if (key === 'custom') return set({ template: 'custom' });
+    const t = templates[key];
+    if (!t) return;
+    setExam(prev => ({
+      ...prev,
+      template: key, duration: t.duration, passingScore: t.passingScore, gracePeriod: t.gracePeriod,
+      navigation: { ...t.navigation }, negativeMarking: { ...t.negativeMarking }, security: { ...t.security },
+      shuffleQuestions: t.shuffleQuestions, shuffleOptions: t.shuffleOptions
+    }));
+    showToast(`Applied "${t.title}" template settings`, 'success');
   };
 
-  const deleteQuestion = (index) => setQuestions(prev => prev.filter((_, i) => i !== index));
+  const addSection = () => setExam(prev => ({ ...prev, sections: [...prev.sections, { id: 's' + Date.now(), name: `Section ${prev.sections.length + 1}`, description: '', timeLimit: null, shuffleQuestions: false, shuffleOptions: false, questions: [] }] }));
+  const updateSection = (idx, patch) => setExam(prev => ({ ...prev, sections: prev.sections.map((s, i) => i === idx ? { ...s, ...patch } : s) }));
+  const removeSection = (idx) => setExam(prev => ({ ...prev, sections: prev.sections.filter((_, i) => i !== idx) }));
 
-  const handleOpenPasteModal = () => {
-    setPasteText(""); setParsedPreview([]); setSkippedCount(0); setShowPasteModal(true);
+  const saveQuestion = (q) => {
+    const { sectionIdx } = editingQ;
+    setExam(prev => ({
+      ...prev,
+      sections: prev.sections.map((s, i) => {
+        if (i !== sectionIdx) return s;
+        const exists = q.id && s.questions.some(x => x.id === q.id);
+        const qWithId = q.id ? q : { ...q, id: 'q' + Date.now() + Math.random().toString(36).slice(2, 6) };
+        return { ...s, questions: exists ? s.questions.map(x => x.id === q.id ? q : x) : [...s.questions, qWithId] };
+      })
+    }));
+    setEditingQ(null);
+  };
+  const removeQuestion = (sectionIdx, qid) => setExam(prev => ({ ...prev, sections: prev.sections.map((s, i) => i === sectionIdx ? { ...s, questions: s.questions.filter(q => q.id !== qid) } : s) }));
+
+  const buildPayload = () => {
+    const p = { ...exam };
+    p.password = exam.usePassword && exam.password ? exam.password : (examId && exam.usePassword ? undefined : null);
+    p.scheduledStart = exam.scheduledStart || null;
+    p.scheduledEnd = exam.scheduledEnd || null;
+    delete p.usePassword;
+    delete p.hasPassword;
+    if (p.password === undefined) delete p.password; // keep existing password unchanged
+    return p;
   };
 
-  const executeParse = () => {
-    const { parsed, skippedCount: skipped } = parseBulkQuestions(pasteText);
-    if (parsed.length === 0) return showToast("Could not parse valid questions. Check formatting.", "error");
-    setParsedPreview(parsed); setSkippedCount(skipped);
-  };
-
-  const handleConfirmPaste = () => {
-    setQuestions(prev => [...prev, ...parsedPreview]);
-    setShowPasteModal(false);
-    showToast(`${parsedPreview.length} questions added!`, "success");
-  };
-
-  const handleSaveDraft = async () => {
-    if (!examData.title) return showToast("Exam title is required", 'error');
-    setIsSaving(true); setSaveStatus('');
+  const save = async (publish) => {
+    if (!exam.title.trim()) return showToast('Exam title is required', 'error');
+    setSaving(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) { showToast('Session expired. Please log in.', 'error'); onBack(); return; }
+      let id = examId;
+      if (id) await api(`/api/exams/${id}`, { method: 'PUT', body: buildPayload() });
+      else { const r = await api('/api/exams', { method: 'POST', body: buildPayload() }); id = r.examId; }
 
-      const payload = { ...examData, duration: parseInt(examData.duration), passingScore: parseInt(examData.passingScore), questions, security };
-      const url = examId ? `${API_BASE_URL}/api/exams/${examId}` : `${API_BASE_URL}/api/exams`;
-      const method = examId ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
-
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('token'); localStorage.removeItem('user');
-        showToast('Session expired. Please log in.', 'error'); onBack(); return;
-      }
-
-      if (response.ok) {
-        setSaveStatus('✓ Saved'); showToast('Draft saved', 'success');
-        setTimeout(() => setSaveStatus(''), 3000);
+      if (publish) {
+        const r = await api(`/api/exams/${id}/publish`, { method: 'POST' });
+        showToast(`Published! Code: ${r.examCode}`, 'success');
       } else {
-        const errorData = await response.json();
-        showToast('Failed to save draft: ' + (errorData.error || 'Unknown error'), 'error');
+        showToast('Draft saved', 'success');
       }
-    } catch (error) {
-      showToast('Error saving draft: ' + error.message, 'error');
-    } finally {
-      setIsSaving(false);
-    }
+      onBack();
+    } catch (e) { showToast(e.message, 'error'); }
+    finally { setSaving(false); }
   };
 
-  const handlePublishExam = async () => {
-    if (!examId) return showToast("Please save draft first", 'error');
-    if (questions.length === 0) return showToast("Add questions before publishing", 'error');
-    setIsSaving(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/exams/${examId}/publish`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        showToast(`Exam published! Code: ${data.examCode}`, 'success'); onBack();
-      } else {
-        const errorData = await response.json();
-        showToast('Failed to publish: ' + (errorData.error || 'Unknown'), 'error');
-      }
-    } catch (error) { showToast('Error publishing: ' + error.message, 'error'); } 
-    finally { setIsSaving(false); }
-  };
+  if (!exam) return <Loading />;
+  const totalQuestions = exam.sections.reduce((n, s) => n + s.questions.length, 0);
 
   return (
-    <>
-      <style>{createExamStyles}</style>
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px' }}>
+      <div className="page-header">
+        <div>
+          <button className="btn btn-secondary btn-sm" onClick={onBack}>← Back</button>
+          <div className="page-title" style={{ marginTop: 12 }}>{examId ? 'Edit Exam' : 'Create Exam'}</div>
+          <div className="page-subtitle">{totalQuestions} questions across {exam.sections.length} section(s)</div>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-secondary" disabled={saving} onClick={() => save(false)}>Save Draft</button>
+          <button className="btn btn-primary" disabled={saving} onClick={() => save(true)}>Save & Publish</button>
+        </div>
+      </div>
 
-      <div className="create-page">
-        {/* Action Bar */}
-        <div className="action-bar">
-          <div className="bar-left">
-            <button className="back-btn" onClick={onBack}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-              Dashboard
-            </button>
-            <div className="page-title">{examData.title || "Untitled Assessment"}</div>
+      <div className="panel">
+        <div className="panel-title">Basics</div>
+        <div className="form-group">
+          <label className="form-label">Start from a template</label>
+          <select className="form-select" value={exam.template} onChange={e => applyTemplate(e.target.value)}>
+            <option value="custom">Custom (no preset)</option>
+            <option value="quiz">Quiz</option>
+            <option value="midterm">Mid-Term Exam</option>
+            <option value="endterm">End-Term Exam</option>
+            <option value="assignment">Assignment</option>
+          </select>
+          <div className="form-hint">Templates pre-fill timing & anti-cheat toggles — you can still change everything below.</div>
+        </div>
+        <div className="form-group"><label className="form-label">Title *</label><input className="form-input" value={exam.title} onChange={e => set({ title: e.target.value })} /></div>
+        <div className="form-group"><label className="form-label">Description</label><textarea className="form-textarea" value={exam.description} onChange={e => set({ description: e.target.value })} /></div>
+        <div className="form-row">
+          <div className="form-group"><label className="form-label">Duration (minutes)</label><input className="form-input" type="number" min="1" value={exam.duration} onChange={e => set({ duration: Number(e.target.value) })} /></div>
+          <div className="form-group"><label className="form-label">Passing Score (%)</label><input className="form-input" type="number" min="0" max="100" value={exam.passingScore} onChange={e => set({ passingScore: Number(e.target.value) })} /></div>
+        </div>
+        <div className="form-row">
+          <div className="form-group"><label className="form-label">Schedule Start (optional)</label><input className="form-input" type="datetime-local" value={exam.scheduledStart} onChange={e => set({ scheduledStart: e.target.value })} /></div>
+          <div className="form-group"><label className="form-label">Schedule End (optional)</label><input className="form-input" type="datetime-local" value={exam.scheduledEnd} onChange={e => set({ scheduledEnd: e.target.value })} /></div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">Sections & Questions <button className="btn btn-secondary btn-sm" onClick={addSection}>+ Add Section</button></div>
+        {exam.sections.map((sec, si) => (
+          <div key={sec.id} style={{ border: '1px solid var(--border-color)', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 }}>
+              <input className="form-input" style={{ fontWeight: 700, flex: 1 }} value={sec.name} onChange={e => updateSection(si, { name: e.target.value })} />
+              <input className="form-input" style={{ width: 150 }} type="number" min="0" placeholder="Time limit (min)" value={sec.timeLimit ?? ''} onChange={e => updateSection(si, { timeLimit: e.target.value === '' ? null : Number(e.target.value) })} />
+              {exam.sections.length > 1 && <button className="btn btn-danger btn-sm" onClick={() => removeSection(si)}>✕</button>}
+            </div>
+            <div style={{ display: 'flex', gap: 20, marginBottom: 12 }}>
+              <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={sec.shuffleQuestions} onChange={e => updateSection(si, { shuffleQuestions: e.target.checked })} /> Shuffle questions</label>
+              <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={sec.shuffleOptions} onChange={e => updateSection(si, { shuffleOptions: e.target.checked })} /> Shuffle options</label>
+            </div>
+            {sec.questions.map((q, qi) => (
+              <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 8, marginBottom: 8 }}>
+                <div style={{ fontSize: 14 }}><span className="badge badge-info" style={{ marginRight: 8 }}>{q.type === 'multiple-choice' ? 'MCQ' : 'Short'}</span>{qi + 1}. {q.text || '(no text)'} <span style={{ color: '#94a3b8' }}>· {q.points}pt</span></div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setEditingQ({ sectionIdx: si, question: q })}>Edit</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => removeQuestion(si, q.id)}>✕</button>
+                </div>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setEditingQ({ sectionIdx: si, question: {} })}>+ Add Question</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setImportFromBank({ sectionIdx: si })}>📂 Import from Bank</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => setImportFromCSV({ sectionIdx: si })}>📄 Bulk Import (CSV)</button>
+            </div>
           </div>
-          <div className="bar-right">
-            {saveStatus && <div className="save-status">{saveStatus}</div>}
-            <button className="btn-secondary" onClick={handleSaveDraft} disabled={isSaving}>
-              {isSaving ? 'Saving...' : 'Save Draft'}
-            </button>
-            <button className="btn-primary" onClick={handlePublishExam} disabled={isSaving || !examId} title={!examId ? "Save as draft first" : ""}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-              Publish
+        ))}
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">Navigation Controls</div>
+        <div className="form-group">
+          <label className="form-label">Navigation Mode</label>
+          <select className="form-select" value={exam.navigation.mode} onChange={e => setNav({ mode: e.target.value })}>
+            <option value="free">Free — jump between any question</option>
+            <option value="sequential">Sequential — one question at a time</option>
+          </select>
+        </div>
+        <Toggle label="Allow backtracking" desc="Students can return to previous questions" checked={exam.navigation.allowBacktrack} onChange={v => setNav({ allowBacktrack: v })} />
+        <Toggle label="Allow 'Mark for Review'" desc="Students can flag questions to revisit" checked={exam.navigation.allowMarkForReview} onChange={v => setNav({ allowMarkForReview: v })} />
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">Randomization & Marking</div>
+        <Toggle label="Shuffle questions (exam-wide)" desc="Randomize order across all sections" checked={exam.shuffleQuestions} onChange={v => set({ shuffleQuestions: v })} />
+        <Toggle label="Shuffle options (exam-wide)" desc="Randomize MCQ option order" checked={exam.shuffleOptions} onChange={v => set({ shuffleOptions: v })} />
+        <Toggle label="Negative marking" desc="Deduct points for wrong MCQ answers" checked={exam.negativeMarking.enabled} onChange={v => setNeg({ enabled: v })} />
+        {exam.negativeMarking.enabled && (
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label className="form-label">Deduction per wrong answer</label>
+            <input className="form-input" style={{ maxWidth: 160 }} type="number" min="0" step="0.05" value={exam.negativeMarking.value} onChange={e => setNeg({ value: Number(e.target.value) })} />
+          </div>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">Anti-Cheat & Security <span style={{ fontSize: 12, fontWeight: 500, color: '#64748b' }}>All optional — toggle per exam</span></div>
+        <Toggle label="Require fullscreen" desc="Exam runs in fullscreen mode" checked={exam.security.fullscreenRequired} onChange={v => setSec({ fullscreenRequired: v })} />
+        <Toggle label="Log tab switches / focus loss" desc="Record when student leaves the tab and show a warning" checked={exam.security.tabSwitchLogging} onChange={v => setSec({ tabSwitchLogging: v })} />
+        <Toggle label="Block copy / paste" desc="Disable clipboard during exam" checked={exam.security.copyPasteBlocked} onChange={v => setSec({ copyPasteBlocked: v })} />
+        <Toggle label="Block right-click" desc="Disable context menu" checked={exam.security.rightClickBlocked} onChange={v => setSec({ rightClickBlocked: v })} />
+        <Toggle label="Concurrent login detection" desc="Flag if the same student opens the exam on another device" checked={exam.security.concurrentLoginDetection} onChange={v => setSec({ concurrentLoginDetection: v })} />
+        <div className="form-group" style={{ marginTop: 12 }}>
+          <label className="form-label">Autosave interval (seconds)</label>
+          <input className="form-input" style={{ maxWidth: 160 }} type="number" min="5" value={exam.security.autoSaveInterval} onChange={e => setSec({ autoSaveInterval: Number(e.target.value) })} />
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <Toggle label="Grace period" desc="Extra minutes after the timer before auto-submit" checked={exam.gracePeriod > 0} onChange={v => set({ gracePeriod: v ? 5 : 0 })} />
+          {exam.gracePeriod > 0 && <div className="form-group" style={{ marginTop: 12 }}><label className="form-label">Grace minutes</label><input className="form-input" style={{ maxWidth: 160 }} type="number" min="1" value={exam.gracePeriod} onChange={e => set({ gracePeriod: Number(e.target.value) })} /></div>}
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <Toggle label="Password-protect exam" desc="Students must enter a password to start" checked={exam.usePassword} onChange={v => set({ usePassword: v })} />
+          {exam.usePassword && <div className="form-group" style={{ marginTop: 12 }}><label className="form-label">Exam password {examId && <span className="form-hint">(leave blank to keep existing)</span>}</label><input className="form-input" style={{ maxWidth: 260 }} value={exam.password} onChange={e => set({ password: e.target.value })} /></div>}
+        </div>
+      </div>
+
+      <div>
+        <div className="panel">
+          <div className="panel-title">🔒 Lockdown Mode</div>
+          <Toggle
+            label="Require Safe Exam Browser (SEB)"
+            desc="Students must use SEB to take this exam. SEB enforces full OS-level lockdown including keyboard restrictions, screen capture blocking, and forced fullscreen."
+            checked={exam.securityMode === 'seb'}
+            onChange={v => {
+              const mode = v ? 'seb' : 'standard';
+              if (v) {
+                set({ securityMode: mode });
+                setSec({ fullscreenRequired: true, tabSwitchLogging: true, copyPasteBlocked: true, rightClickBlocked: true, concurrentLoginDetection: true });
+              } else {
+                set({ securityMode: mode });
+              }
+            }}
+          />
+          {exam.securityMode === 'seb' && (
+            <div style={{ marginTop: 12, background: '#f0f4ff', border: '1px solid #c7d2fe', borderRadius: 10, padding: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#4f46e5', marginBottom: 10 }}>SEB Supported Platforms</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: '#10b981', fontWeight: 700 }}>✓</span> Windows</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: '#10b981', fontWeight: 700 }}>✓</span> macOS</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: '#10b981', fontWeight: 700 }}>✓</span> iPadOS</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: '#ef4444', fontWeight: 700 }}>✗</span> <span style={{ color: '#64748b' }}>Android (not supported)</span></div>
+              </div>
+              <div style={{ marginTop: 12, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                When students enter the exam code, they will be prompted to <strong>Launch Exam in SEB</strong> which automatically loads the configuration.
+                Students must install SEB from <a href="https://safeexambrowser.org/download" target="_blank" rel="noreferrer" style={{ color: '#4f46e5', fontWeight: 600 }}>safeexambrowser.org</a> before the exam.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">Student Assignment</div>
+        <Toggle label="Assign to all students in my college" desc="Every registered student can take this exam" checked={exam.assignedAll} onChange={v => set({ assignedAll: v })} />
+        {!exam.assignedAll && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 14, marginBottom: 10 }}>{exam.assignedStudents.length} student(s) assigned</div>
+            <button className="btn btn-secondary" onClick={() => setShowAssign(true)}>Select Students</button>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginBottom: 40 }}>
+        <button className="btn btn-secondary" disabled={saving} onClick={() => save(false)}>Save Draft</button>
+        <button className="btn btn-primary" disabled={saving} onClick={() => save(true)}>Save & Publish</button>
+      </div>
+
+      {editingQ && (
+        <Modal title={editingQ.question.id ? 'Edit Question' : 'Add Question'} onClose={() => setEditingQ(null)} wide>
+          <QuestionEditor initial={editingQ.question} onSave={saveQuestion} onCancel={() => setEditingQ(null)} />
+        </Modal>
+      )}
+      {showAssign && (
+        <AssignModal selected={exam.assignedStudents} onClose={() => setShowAssign(false)} onSave={(ids) => { set({ assignedStudents: ids }); setShowAssign(false); }} />
+      )}
+      {importFromBank && (
+        <ImportFromBankModal
+          onClose={() => setImportFromBank(null)}
+          onImport={(questions) => {
+            importQuestions(importFromBank.sectionIdx, questions);
+            setImportFromBank(null);
+            showToast(`Imported ${questions.length} question(s) from bank`, 'success');
+          }}
+        />
+      )}
+      {importFromCSV && (
+        <ImportFromCSVModal
+          onClose={() => setImportFromCSV(null)}
+          onImport={(questions) => {
+            importQuestions(importFromCSV.sectionIdx, questions);
+            setImportFromCSV(null);
+            showToast(`Bulk imported ${questions.length} question(s) successfully`, 'success');
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AssignModal({ selected, onClose, onSave }) {
+  const [students, setStudents] = useState(null);
+  const [picked, setPicked] = useState(new Set(selected));
+  useEffect(() => { api('/api/exams/meta/students').then(d => setStudents(d.students)).catch(() => setStudents([])); }, []);
+  const toggle = (id) => { const n = new Set(picked); n.has(id) ? n.delete(id) : n.add(id); setPicked(n); };
+  return (
+    <Modal title="Assign Students" onClose={onClose}>
+      {!students ? <Loading /> : students.length === 0 ? (
+        <p style={{ color: '#64748b' }}>No students registered in your college yet. Ask your college admin to add students.</p>
+      ) : (
+        <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+          {students.map(s => (
+            <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
+              <input type="checkbox" checked={picked.has(s.id)} onChange={() => toggle(s.id)} />
+              <div><div style={{ fontWeight: 600, fontSize: 14 }}>{s.name}</div><div style={{ fontSize: 12, color: '#64748b' }}>{s.email}{s.studentId ? ` · ${s.studentId}` : ''}</div></div>
+            </label>
+          ))}
+        </div>
+      )}
+      <div className="modal-actions">
+        <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={() => onSave([...picked])}>Save ({picked.size})</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ImportFromBankModal({ onClose, onImport }) {
+  const { showToast } = useToast();
+  const [banks, setBanks] = useState(null);
+  const [selectedBankId, setSelectedBankId] = useState('');
+  const [bankDetail, setBankDetail] = useState(null);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [selectedQids, setSelectedQids] = useState(new Set());
+  const [search, setSearch] = useState('');
+  const [tagFilter, setTagFilter] = useState('');
+
+  useEffect(() => {
+    api('/api/question-banks')
+      .then(d => setBanks(d.banks))
+      .catch(() => setBanks([]));
+  }, []);
+
+  const selectBank = (id) => {
+    setSelectedBankId(id);
+    if (!id) {
+      setBankDetail(null);
+      return;
+    }
+    setLoadingQuestions(true);
+    api(`/api/question-banks/${id}`)
+      .then(d => {
+        setBankDetail(d.bank);
+        setSelectedQids(new Set());
+      })
+      .catch(() => showToast('Failed to load bank questions', 'error'))
+      .finally(() => setLoadingQuestions(false));
+  };
+
+  const toggleSelect = (qid) => {
+    setSelectedQids(prev => {
+      const next = new Set(prev);
+      if (next.has(qid)) next.delete(qid);
+      else next.add(qid);
+      return next;
+    });
+  };
+
+  const selectAll = (filteredQuestions) => {
+    const allSelected = filteredQuestions.every(q => selectedQids.has(q.id));
+    setSelectedQids(prev => {
+      const next = new Set(prev);
+      filteredQuestions.forEach(q => {
+        if (allSelected) next.delete(q.id);
+        else next.add(q.id);
+      });
+      return next;
+    });
+  };
+
+  const handleImport = () => {
+    if (selectedQids.size === 0) return;
+    const questionsToImport = bankDetail.questions.filter(q => selectedQids.has(q.id));
+    onImport(questionsToImport);
+  };
+
+  const filteredQuestions = bankDetail
+    ? bankDetail.questions.filter(q => {
+        const matchesText = q.text.toLowerCase().includes(search.toLowerCase());
+        const matchesTag = !tagFilter || (q.tags || []).some(t => t.toLowerCase() === tagFilter.toLowerCase());
+        return matchesText && matchesTag;
+      })
+    : [];
+
+  const uniqueTags = bankDetail
+    ? Array.from(new Set(bankDetail.questions.flatMap(q => q.tags || [])))
+    : [];
+
+  return (
+    <Modal title="Import from Question Bank" onClose={onClose} wide>
+      {!banks ? (
+        <Loading />
+      ) : banks.length === 0 ? (
+        <p style={{ color: '#64748b' }}>No question banks available. Create banks in the Question Banks manager first.</p>
+      ) : (
+        <div>
+          <div className="form-group">
+            <label className="form-label">Select Question Bank</label>
+            <select className="form-select" value={selectedBankId} onChange={e => selectBank(e.target.value)}>
+              <option value="">-- Choose a Bank --</option>
+              {banks.map(b => (
+                <option key={b.id} value={b.id}>{b.name} ({b.questionCount} questions)</option>
+              ))}
+            </select>
+          </div>
+
+          {loadingQuestions && <Loading label="Loading questions..." />}
+
+          {bankDetail && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <input
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  placeholder="Search questions by text..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+                {uniqueTags.length > 0 && (
+                  <select className="form-select" style={{ width: 180 }} value={tagFilter} onChange={e => setTagFilter(e.target.value)}>
+                    <option value="">All Tags</option>
+                    {uniqueTags.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {filteredQuestions.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#64748b', padding: '20px 0' }}>No questions match your filter.</p>
+              ) : (
+                <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 10, padding: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '2px solid var(--border-color)', fontWeight: 700, fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={filteredQuestions.every(q => selectedQids.has(q.id))}
+                      onChange={() => selectAll(filteredQuestions)}
+                    />
+                    <span>Select All ({filteredQuestions.length})</span>
+                  </label>
+                  {filteredQuestions.map((q, qi) => (
+                    <label key={q.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-color)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        style={{ marginTop: 3 }}
+                        checked={selectedQids.has(q.id)}
+                        onChange={() => toggleSelect(q.id)}
+                      />
+                      <div style={{ fontSize: 14 }}>
+                        <div style={{ fontWeight: 600 }}>{qi + 1}. {q.text}</div>
+                        <div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'center' }}>
+                          <span className="badge badge-info">{q.type === 'multiple-choice' ? 'MCQ' : 'Short Answer'}</span>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>{q.points} pt{q.points !== 1 ? 's' : ''}</span>
+                          {(q.tags || []).map(t => (
+                            <span key={t} className="badge badge-draft" style={{ fontSize: 10 }}>{t}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" disabled={selectedQids.size === 0} onClick={handleImport}>
+              Import Selected ({selectedQids.size})
             </button>
           </div>
         </div>
+      )}
+    </Modal>
+  );
+}
 
-        <div className="form-container">
-          {/* General Information */}
-          <div className="config-card">
-            <div className="card-header">
-              <h2>General Setup</h2>
-              <p>Configure the primary details and instructions for the assessment.</p>
-            </div>
-            <div className="form-group">
-              <label>Assessment Title</label>
-              <input type="text" name="title" placeholder="e.g., Midterm Computer Science 101" value={examData.title} onChange={handleInputChange} />
-            </div>
-            <div className="form-group">
-              <label>Instructions for Candidates</label>
-              <textarea name="description" placeholder="Explain the rules, formatting, and expectations..." value={examData.description} onChange={handleInputChange}></textarea>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Duration (Minutes)</label>
-                <input type="number" name="duration" min="1" value={examData.duration} onChange={handleInputChange} />
-              </div>
-              <div className="form-group">
-                <label>Passing Threshold (%)</label>
-                <input type="number" name="passingScore" min="1" max="100" value={examData.passingScore} onChange={handleInputChange} />
-              </div>
-            </div>
+function ImportFromCSVModal({ onClose, onImport }) {
+  const [csvText, setCsvText] = useState('');
+  const [parsed, setParsed] = useState([]); // [{ success, error, question }]
+  const [preview, setPreview] = useState(false);
+
+  const parseCSV = (text) => {
+    const result = [];
+    let row = [''];
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const next = text[i+1];
+      if (c === '"') {
+        if (inQuotes && next === '"') {
+          row[row.length - 1] += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === ',' && !inQuotes) {
+        row.push('');
+      } else if ((c === '\r' || c === '\n') && !inQuotes) {
+        if (c === '\r' && next === '\n') i++;
+        result.push(row);
+        row = [''];
+      } else {
+        row[row.length - 1] += c;
+      }
+    }
+    if (row.length > 1 || row[0] !== '') {
+      result.push(row);
+    }
+    return result;
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      setCsvText(evt.target.result);
+      processCSV(evt.target.result);
+    };
+    reader.readAsText(file);
+  };
+
+  const processCSV = (rawText) => {
+    const rows = parseCSV(rawText.trim());
+    if (rows.length < 2) {
+      setParsed([{ success: false, error: 'Empty file or missing header row' }]);
+      setPreview(true);
+      return;
+    }
+
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    const idxOf = (possibleNames) => headers.findIndex(h => possibleNames.includes(h));
+
+    const typeIdx = idxOf(['type', 'qtype', 'questiontype']);
+    const textIdx = idxOf(['text', 'question', 'question text', 'questiontext']);
+    const pointsIdx = idxOf(['points', 'score', 'pts', 'point']);
+    const timeIdx = idxOf(['time limit', 'time', 'timelimit', 'duration']);
+    const correctOptionIdx = idxOf(['correct option', 'correctoption', 'correct index', 'correctindex', 'correct_option']);
+    const correctAnswerIdx = idxOf(['correct answer', 'correctanswer', 'answer', 'model answer']);
+    const explanationIdx = idxOf(['explanation', 'reason']);
+    const tagsIdx = idxOf(['tags', 'tag']);
+
+    const optionIndices = [];
+    headers.forEach((h, i) => {
+      if (h.startsWith('option')) optionIndices.push(i);
+    });
+
+    const parsedQuestions = rows.slice(1).map((row, rIdx) => {
+      if (row.length === 1 && row[0] === '') return null;
+      
+      const getVal = (idx) => (idx !== -1 && row[idx] !== undefined) ? row[idx].trim() : '';
+
+      const text = getVal(textIdx);
+      if (!text) {
+        return { success: false, error: `Row ${rIdx + 2}: Missing question text` };
+      }
+
+      let type = getVal(typeIdx).toLowerCase();
+      if (type.includes('mcq') || type.includes('choice') || type.includes('multiple')) {
+        type = 'multiple-choice';
+      } else if (type.includes('short') || type.includes('answer') || type.includes('text')) {
+        type = 'short-answer';
+      } else {
+        type = optionIndices.some(idx => getVal(idx)) ? 'multiple-choice' : 'short-answer';
+      }
+
+      const pointsVal = getVal(pointsIdx);
+      const points = pointsVal ? Number(pointsVal) : 1;
+      if (isNaN(points) || points < 0) {
+        return { success: false, error: `Row ${rIdx + 2}: Invalid points value "${pointsVal}"` };
+      }
+
+      const timeVal = getVal(timeIdx);
+      const timeLimit = timeVal ? Number(timeVal) : null;
+      if (timeLimit !== null && (isNaN(timeLimit) || timeLimit < 0)) {
+        return { success: false, error: `Row ${rIdx + 2}: Invalid time limit value "${timeVal}"` };
+      }
+
+      const tags = getVal(tagsIdx) ? getVal(tagsIdx).split(/[;,]/).map(t => t.trim()).filter(Boolean) : [];
+      const explanation = getVal(explanationIdx);
+
+      if (type === 'multiple-choice') {
+        const options = optionIndices
+          .map(idx => getVal(idx))
+          .filter(Boolean);
+        
+        if (options.length < 2) {
+          return { success: false, error: `Row ${rIdx + 2}: MCQ questions must have at least 2 options` };
+        }
+
+        const correctVal = getVal(correctOptionIdx);
+        let correctOption = null;
+
+        if (!correctVal) {
+          return { success: false, error: `Row ${rIdx + 2}: MCQ questions require a correct option` };
+        }
+
+        const parsedInt = parseInt(correctVal);
+        if (!isNaN(parsedInt)) {
+          if (parsedInt >= 1 && parsedInt <= options.length) {
+            correctOption = parsedInt - 1;
+          } else if (parsedInt >= 0 && parsedInt < options.length) {
+            correctOption = parsedInt;
+          }
+        }
+
+        if (correctOption === null && correctVal.length === 1) {
+          const charCode = correctVal.toUpperCase().charCodeAt(0);
+          if (charCode >= 65 && charCode < 65 + options.length) {
+            correctOption = charCode - 65;
+          }
+        }
+
+        if (correctOption === null) {
+          const matchedIdx = options.findIndex(o => o.toLowerCase() === correctVal.toLowerCase());
+          if (matchedIdx !== -1) {
+            correctOption = matchedIdx;
+          }
+        }
+
+        if (correctOption === null) {
+          return { success: false, error: `Row ${rIdx + 2}: Correct option value "${correctVal}" did not match any option (or was out of range)` };
+        }
+
+        return {
+          success: true,
+          question: { type, text, options, correctOption, correctAnswer: '', points, timeLimit, tags, explanation }
+        };
+
+      } else {
+        const correctAnswer = getVal(correctAnswerIdx);
+        return {
+          success: true,
+          question: { type, text, options: [], correctOption: null, correctAnswer, points, timeLimit, tags, explanation }
+        };
+      }
+    }).filter(Boolean);
+
+    setParsed(parsedQuestions);
+    setPreview(true);
+  };
+
+  const handleImport = () => {
+    const validQuestions = parsed.filter(p => p.success).map(p => p.question);
+    onImport(validQuestions);
+  };
+
+  const validCount = parsed.filter(p => p.success).length;
+
+  return (
+    <Modal title="Bulk Import Questions (CSV)" onClose={onClose} wide>
+      {!preview ? (
+        <div>
+          <div style={{ background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid var(--border-color)', marginBottom: 18, fontSize: 13 }}>
+            <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: 6 }}>CSV Format Guide</div>
+            <p style={{ color: '#64748b', marginBottom: 8 }}>
+              Ensure your CSV file contains a header row. The order of columns does not matter, but column names should be matched as follows:
+            </p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                  <th style={{ padding: '6px 0' }}>Field</th>
+                  <th style={{ padding: '6px 0' }}>CSV Column Name(s)</th>
+                  <th style={{ padding: '6px 0' }}>Example / Allowed Values</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ fontWeight: 600, padding: '4px 0' }}>Type</td>
+                  <td><code>Type</code>, <code>qtype</code></td>
+                  <td><code>multiple-choice</code> (or MCQ) / <code>short-answer</code></td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ fontWeight: 600, padding: '4px 0' }}>Text</td>
+                  <td><code>Text</code>, <code>Question Text</code></td>
+                  <td>"What is the capital of France?"</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ fontWeight: 600, padding: '4px 0' }}>Options</td>
+                  <td><code>Option 1</code>, <code>Option 2</code>, etc.</td>
+                  <td>Include columns for your choices. Minimum 2 options for MCQ.</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ fontWeight: 600, padding: '4px 0' }}>Correct Option</td>
+                  <td><code>Correct Option</code></td>
+                  <td>Index (<code>1</code> for Option 1), Letter (<code>A</code>), or matching text</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ fontWeight: 600, padding: '4px 0' }}>Answer</td>
+                  <td><code>Correct Answer</code>, <code>Answer</code></td>
+                  <td>Model text reference for Short Answer questions</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ fontWeight: 600, padding: '4px 0' }}>Points</td>
+                  <td><code>Points</code>, <code>score</code></td>
+                  <td>Numeric value (e.g. <code>1</code> or <code>2.5</code>)</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600, padding: '4px 0' }}>Tags</td>
+                  <td><code>Tags</code></td>
+                  <td>Comma-separated tags (e.g. <code>Unit 1, Easy</code>)</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          {/* Proctoring Settings */}
-          <div className="config-card">
-            <div className="card-header">
-              <h2>Evalix Proctoring</h2>
-              <p>Enable automated security measures to maintain assessment integrity.</p>
-            </div>
-            {[
-              { id: 'fullscreen', title: 'Enforce Fullscreen', desc: 'Candidates must remain in full-screen mode. Exits are flagged.', icon: <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/> },
-              { id: 'tabTracking', title: 'Tab Switch Tracking', desc: 'Monitor and flag if a candidate navigates away to another browser tab.', icon: <><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></> },
-              { id: 'copyPaste', title: 'Disable Copy/Paste', desc: 'Prevent copying questions or pasting pre-written answers into inputs.', icon: <><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></> },
-              { id: 'webcam', title: 'Webcam Monitoring', desc: 'Periodically capture candidate imagery to verify identity and presence.', icon: <><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></> }
-            ].map(setting => (
-              <div className="setting-row" key={setting.id}>
-                <div className="setting-info">
-                  <div className="setting-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{setting.icon}</svg></div>
-                  <div className="setting-text">
-                    <h4>{setting.title}</h4>
-                    <p>{setting.desc}</p>
-                  </div>
+          <div className="form-group">
+            <label className="form-label" style={{ fontWeight: 700 }}>Choose CSV File</label>
+            <input type="file" accept=".csv" onChange={handleFileUpload} />
+          </div>
+
+          <div style={{ textAlign: 'center', margin: '14px 0', color: '#94a3b8', fontSize: 13, fontWeight: 600 }}>— OR —</div>
+
+          <div className="form-group">
+            <label className="form-label" style={{ fontWeight: 700 }}>Paste CSV Content</label>
+            <textarea
+              className="form-textarea"
+              style={{ minHeight: 120, fontFamily: 'monospace', fontSize: 13 }}
+              placeholder={`Type,Text,Option 1,Option 2,Option 3,Option 4,Correct Option,Points,Tags
+MCQ,What is 2 + 2?,3,4,5,6,B,1,"Math, Easy"
+Short,Define gravity,,,,,Constant force pulling objects,2,"Physics, Unit 1"`}
+              value={csvText}
+              onChange={e => setCsvText(e.target.value)}
+            />
+          </div>
+
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" disabled={!csvText.trim()} onClick={() => processCSV(csvText)}>
+              Preview & Parse →
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>Import Preview</div>
+            <button className="btn btn-secondary btn-sm" onClick={() => setPreview(false)}>← Back</button>
+          </div>
+
+          <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+            {parsed.map((p, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                <span className={`badge ${p.success ? 'badge-success' : 'badge-danger'}`} style={{ height: 'fit-content' }}>
+                  {p.success ? 'Valid' : 'Error'}
+                </span>
+                <div style={{ flex: 1, fontSize: 13 }}>
+                  {p.success ? (
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{i + 1}. {p.question.text}</div>
+                      <div style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>
+                        {p.question.type === 'multiple-choice'
+                          ? `MCQ · ${p.question.options.length} options · Correct: ${p.question.options[p.question.correctOption]} · ${p.question.points}pt`
+                          : `Short Answer · Points: ${p.question.points}pt`
+                        }
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--red)', fontWeight: 500 }}>{p.error}</div>
+                  )}
                 </div>
-                <label className="switch">
-                  <input type="checkbox" checked={security[setting.id]} onChange={() => toggleSecurity(setting.id)} />
-                  <span className="slider"></span>
-                </label>
               </div>
             ))}
           </div>
 
-          {/* Question Builder */}
-          <div className="config-card">
-            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <h2>Question Bank <span style={{color: 'var(--text-muted)', fontWeight: 500, fontSize: '16px'}}>({questions.length})</span></h2>
-                <p>Construct or paste the questions for this exam.</p>
-              </div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button className="btn-secondary" onClick={handleOpenPasteModal}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-                  Bulk Import
-                </button>
-                <button className="btn-primary" onClick={openAddQuestion}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                  Add
-                </button>
-              </div>
-            </div>
-
-            {questions.length === 0 ? (
-              <div className="questions-empty">
-                <div className="empty-icon">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                </div>
-                <h3>Your exam is empty</h3>
-                <p>Start building your assessment by adding questions manually or pasting them in bulk.</p>
-                <button className="btn-primary" onClick={openAddQuestion} style={{ margin: '0 auto' }}>Create First Question</button>
-              </div>
-            ) : (
-              <div className="questions-list">
-                {questions.map((q, index) => (
-                  <div key={index} className="question-item">
-                    <div className="question-header">
-                      <h4>{index + 1}. {q.text}</h4>
-                      <div className="question-actions">
-                        <button className="btn-icon edit" onClick={() => openEditQuestion(index)} title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                        <button className="btn-icon delete" onClick={() => deleteQuestion(index)} title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                      </div>
-                    </div>
-                    <div className="badges">
-                      <span className="badge type">{q.type === 'multiple-choice' ? 'Multiple Choice' : 'Short Answer'}</span>
-                      <span className="badge points">{q.points} {q.points === 1 ? 'Point' : 'Points'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Single Question Editor Modal */}
-      {showQuestionModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{editingQuestion !== null ? 'Edit Question' : 'Add New Question'}</h3>
-            </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Question Format</label>
-                <select name="type" value={questionForm.type} onChange={handleQuestionFormChange}>
-                  <option value="multiple-choice">Multiple Choice</option>
-                  <option value="short-answer">Short Answer</option>
-                </select>
-              </div>
-              <div className="form-group" style={{maxWidth: '120px'}}>
-                <label>Points</label>
-                <input type="number" name="points" min="1" value={questionForm.points} onChange={handleQuestionFormChange} />
-              </div>
-            </div>
-            <div className="form-group">
-              <label>Question Prompt</label>
-              <textarea name="text" placeholder="What is the capital of..." value={questionForm.text} onChange={handleQuestionFormChange}></textarea>
-            </div>
-
-            {questionForm.type === 'multiple-choice' && (
-              <div className="form-group">
-                <label>Answer Choices (Select Correct)</label>
-                {questionForm.options.map((option, idx) => (
-                  <div key={idx} className="option-input">
-                    <label className="radio-wrap">
-                      <input type="radio" name="correctOption" checked={questionForm.correctOption === idx} onChange={() => setQuestionForm(prev => ({ ...prev, correctOption: idx }))} />
-                      <span>{String.fromCharCode(65 + idx)}</span>
-                    </label>
-                    <input type="text" placeholder={`Option ${idx + 1}`} value={option} onChange={(e) => handleOptionChange(idx, e.target.value)} />
-                    {questionForm.options.length > 2 && (
-                      <button className="btn-icon delete" onClick={() => removeOptionField(idx)} title="Remove option">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button className="btn-secondary" onClick={addOptionField} style={{ width: '100%', marginTop: '12px', borderStyle: 'dashed' }}>+ Add Option</button>
-              </div>
-            )}
-            <div className="modal-actions">
-              <button className="modal-cancel" onClick={() => setShowQuestionModal(false)}>Cancel</button>
-              <button className="btn-primary" onClick={saveQuestion}>Save Question</button>
-            </div>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" disabled={validCount === 0} onClick={handleImport}>
+              Import Valid Questions ({validCount} / {parsed.length})
+            </button>
           </div>
         </div>
       )}
-
-      {/* Bulk Paste Modal */}
-      {showPasteModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '640px' }}>
-            <div className="modal-header">
-              <h3>Bulk Import Questions</h3>
-            </div>
-            {parsedPreview.length === 0 ? (
-              <>
-                <div style={{ background: 'var(--primary-light)', padding: '16px', borderRadius: 'var(--radius-sm)', marginBottom: '24px', fontSize: '13px', color: '#3730a3' }}>
-                  <p style={{ fontWeight: 600, marginBottom: '8px' }}>Format Requirement:</p>
-                  <p>Separate questions by an empty line. List options below the question, ending with the answer.</p>
-                  <pre style={{ marginTop: '12px', background: 'white', padding: '12px', borderRadius: '6px', border: '1px solid #c7d2fe', overflow: 'auto', color: 'var(--text-dark)' }}>
-                    What is the speed of light?{'\n'}A) 300,000 km/s{'\n'}B) 150,000 km/s{'\n'}C) 500,000 km/s{'\n'}D) 1,000,000 km/s{'\n'}Answer: A
-                  </pre>
-                </div>
-                <div className="form-group">
-                  <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste your formatted text here..." style={{ minHeight: '280px', fontFamily: 'monospace', fontSize: '14px' }}></textarea>
-                </div>
-                <div className="modal-actions">
-                  <button className="modal-cancel" onClick={() => setShowPasteModal(false)}>Cancel</button>
-                  <button className="btn-primary" onClick={executeParse}>Parse & Preview</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ marginBottom: '20px', background: 'var(--success-light)', border: '1px solid var(--success)', padding: '16px', borderRadius: 'var(--radius-sm)', color: '#047857', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                  {parsedPreview.length} questions parsed successfully
-                </div>
-                {skippedCount > 0 && (
-                  <div style={{ marginBottom: '20px', background: 'var(--danger-light)', padding: '12px', borderRadius: 'var(--radius-sm)', color: 'var(--danger)', fontSize: '14px' }}>
-                    ⚠️ {skippedCount} blocks were skipped due to invalid formatting.
-                  </div>
-                )}
-                <div style={{ maxHeight: '350px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px', paddingRight: '8px' }}>
-                  {parsedPreview.map((q, i) => (
-                    <div key={i} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '20px' }}>
-                      <h4 style={{ fontSize: '15px', color: 'var(--text-dark)', marginBottom: '16px', lineHeight: '1.4' }}>{i + 1}. {q.text}</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        {q.options.map((opt, optIdx) => (
-                          <div key={optIdx} style={{ 
-                            padding: '10px 12px', fontSize: '13px', borderRadius: 'var(--radius-sm)', border: '1px solid', 
-                            borderColor: optIdx === q.correctOption ? 'var(--success)' : 'var(--border-color)', 
-                            background: optIdx === q.correctOption ? 'var(--success-light)' : 'var(--bg-main)', 
-                            color: optIdx === q.correctOption ? '#047857' : 'inherit',
-                            display: 'flex', justifyContent: 'space-between'
-                          }}>
-                            <span>{String.fromCharCode(65 + optIdx)}. {opt}</span>
-                            {optIdx === q.correctOption && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="modal-actions">
-                  <button className="modal-cancel" onClick={() => setParsedPreview([])}>Back to Edit</button>
-                  <button className="btn-primary" style={{ background: 'var(--success)', borderColor: 'var(--success)' }} onClick={handleConfirmPaste}>Import {parsedPreview.length} Questions</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </>
+    </Modal>
   );
 }
-
-export default CreateExamScreen;

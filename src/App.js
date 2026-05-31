@@ -1,179 +1,78 @@
-import React from 'react';
-import AuthScreen from './authscreen.js';
-import HostDashboard from './HostDashboard.js';
-import CreateExamScreen from './CreateExamScreen.js';
+import React, { useState, useEffect } from 'react';
+import theme from './theme.js';
+import { getStoredUser, logout as doLogout, api } from './api.js';
+import { Loading } from './components.js';
+import LoginScreen from './LoginScreen.js';
+import SuperAdminDashboard from './SuperAdminDashboard.js';
+import CollegeAdminDashboard from './CollegeAdminDashboard.js';
+import TeacherDashboard from './TeacherDashboard.js';
 import StudentExamTaking from './StudentExamTaking.js';
-import StudentResponsesViewer from './StudentResponsesViewer.js';
-import LiveTracking from './LiveTracking.js';
-import { useToast } from './ToastContext.js';
-import API_BASE_URL from './apiConfig.js';
 
-const globalStyles = `
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
+export default function App() {
+  const [user, setUser] = useState(null);           // admin / teacher session
+  const [loading, setLoading] = useState(true);
+  const [examState, setExamState] = useState(null); // { session, student } for student exam
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-  }
-
-  #root {
-    width: 100%;
-    height: 100%;
-  }
-`;
-
-
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
-  const [user, setUser] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [currentScreen, setCurrentScreen] = React.useState('dashboard'); // 'dashboard', 'createExam', or 'responses'
-  const [editingExamId, setEditingExamId] = React.useState(null);
-  const [editingExam, setEditingExam] = React.useState(null);
-  const [viewingExam, setViewingExam] = React.useState(null);
-  
-  const { showToast } = useToast();
-
-  // Check if user is already logged in on mount
-  React.useEffect(() => {
+  useEffect(() => {
     const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-
-    if (token && savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-      } catch (err) {
-        console.error('Error parsing saved user:', err);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
+    const stored = getStoredUser();
+    if (token && stored && stored.role !== 'student') {
+      setUser(stored);
+      api('/api/auth/me')
+        .then(d => { setUser(d.user); localStorage.setItem('user', JSON.stringify(d.user)); })
+        .catch(() => handleLogout())
+        .finally(() => setLoading(false));
+    } else {
+      // Clear any lingering student tokens
+      if (stored?.role === 'student') { localStorage.removeItem('token'); localStorage.removeItem('user'); }
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
-  const handleAuthSuccess = (userData) => {
-    setUser(userData);
-    setIsAuthenticated(true);
+  const handleLogin = (u) => setUser(u);
+  const handleLogout = () => { doLogout(); setUser(null); };
+
+  // Student joins via exam code — store token temporarily in localStorage for API calls
+  const handleExamStart = ({ token, session, student }) => {
+    localStorage.setItem('token', token); // used by api.js for autosave/submit calls
+    setExamState({ session, student });
   };
 
-  const handleLogout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    setCurrentScreen('dashboard');
+  const handleExamExit = () => {
+    localStorage.removeItem('token');     // clear student session token
+    setExamState(null);
   };
 
-  const handleExitExam = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
-  const handleCreateExam = () => {
-    setEditingExamId(null);
-    setEditingExam(null);
-    setCurrentScreen('createExam');
-  };
-
-  const handleEditExam = async (examId) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/exams/${examId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setEditingExamId(examId);
-        setEditingExam(data.exam);
-        setCurrentScreen('createExam');
-      }
-    } catch (error) {
-      console.error('Error fetching exam:', error);
-      showToast('Failed to load exam', 'error');
-    }
-  };
-
-  const handleBackToDashboard = () => {
-    setCurrentScreen('dashboard');
-    setEditingExamId(null);
-    setEditingExam(null);
-    setViewingExam(null);
-  };
-
-  const handleViewResponses = (exam) => {
-    setViewingExam(exam);
-    setCurrentScreen('responses');
-  };
-
-  if (loading) {
-    return React.createElement(React.Fragment, null,
-      React.createElement('style', null, globalStyles),
-      React.createElement('div', { className: 'loading' },
-        React.createElement('p', null, 'Loading...')
-      )
+  // Student in exam
+  if (examState) {
+    return (
+      <>
+        <style>{theme}</style>
+        <StudentExamTaking session={examState.session} onExit={handleExamExit} />
+      </>
     );
   }
 
-  return React.createElement(React.Fragment, null,
-    React.createElement('style', null, globalStyles),
-    React.createElement('div', { className: 'app' },
-      isAuthenticated && user
-        ? (user.isStudent
-            ? React.createElement(StudentExamTaking, {
-                exam: user.exam,
-                studentName: user.studentName,
-                studentEmail: user.studentEmail,
-                examCode: user.exam?.examCode,
-                onExit: handleExitExam,
-                isResuming: user.isResuming,
-                existingAttempt: user.existingAttempt
-              })
-            : (currentScreen === 'responses'
-                ? React.createElement(StudentResponsesViewer, {
-                    exam: viewingExam,
-                    examId: viewingExam?.id,
-                    onBack: handleBackToDashboard
-                  })
-                : (currentScreen === 'live-tracking'
-                    ? React.createElement(LiveTracking, {
-                        exam: viewingExam,
-                        examId: viewingExam?.id,
-                        onBack: handleBackToDashboard
-                      })
-                    : (currentScreen === 'createExam'
-                        ? React.createElement(CreateExamScreen, {
-                            examId: editingExamId,
-                            initialExam: editingExam,
-                            user: user,
-                            onBack: handleBackToDashboard
-                          })
-                        : React.createElement(HostDashboard, {
-                            user: user,
-                            onLogout: handleLogout,
-                            onCreateExam: handleCreateExam,
-                            onEditExam: handleEditExam,
-                            onViewResponses: handleViewResponses,
-                            onLiveTracking: (exam) => {
-                              setViewingExam(exam);
-                              setCurrentScreen('live-tracking');
-                            }
-                          })
-                      )
-                  )
-              )
-          )
-        : React.createElement(AuthScreen, {
-            onAuthSuccess: handleAuthSuccess
-          })
-    )
+  if (loading) return <Loading />;
+
+  let screen;
+  if (!user) {
+    screen = <LoginScreen onLogin={handleLogin} onExamStart={handleExamStart} />;
+  } else if (user.role === 'superadmin') {
+    screen = <SuperAdminDashboard user={user} onLogout={handleLogout} />;
+  } else if (user.role === 'college_admin') {
+    screen = <CollegeAdminDashboard user={user} onLogout={handleLogout} />;
+  } else if (user.role === 'teacher') {
+    screen = <TeacherDashboard user={user} onLogout={handleLogout} />;
+  } else {
+    // Unknown role (e.g. stale student token) — show login
+    screen = <LoginScreen onLogin={handleLogin} onExamStart={handleExamStart} />;
+  }
+
+  return (
+    <>
+      <style>{theme}</style>
+      {screen}
+    </>
   );
 }
-
-export default App;
