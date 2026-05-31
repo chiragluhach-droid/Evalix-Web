@@ -251,7 +251,7 @@ function ExamOversight() {
   const downloadSEBConfig = async (examId) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${window.location.protocol}//${window.location.hostname}:5080/api/exams/${examId}/seb-config?frontendUrl=${encodeURIComponent(window.location.origin)}`, {
+      const res = await fetch(`${window.location.protocol}//${window.location.hostname}:5009/api/exams/${examId}/seb-config?frontendUrl=${encodeURIComponent(window.location.origin)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to download SEB config');
